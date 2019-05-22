@@ -1,0 +1,33 @@
+{
+  "name": "react-native-sxf-contacts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/renjinlong/react-native-sxf-contacts.git"
+  },
+  "version": "1.0.0",
+  "description": "React Native Contacts (android & ios)",
+  "nativePackage": true,
+  "keywords": [
+    "react-native",
+    "react",
+    "react-component",
+    "addressbook",
+    "contacts",
+    "ios",
+    "android"
+  ],
+  "bugs": {
+    "url": "https://github.com/renjinlong/react-native-sxf-contacts/issues"
+  },
+  "homepage": "https://github.com/renjinlong/react-native-sxf-contacts",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "renjinlong",
+  "license": "MIT",
+  "dependencies": {
+    "react-native-cli": "^2.0.1"
+  }
+}
