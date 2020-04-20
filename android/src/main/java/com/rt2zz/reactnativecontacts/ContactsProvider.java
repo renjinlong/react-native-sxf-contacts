@@ -4,7 +4,7 @@ import android.content.ContentResolver;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.ContactsContract;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -37,6 +37,7 @@ public class ContactsProvider {
         add(ContactsContract.Data.RAW_CONTACT_ID);
         add(ContactsContract.Data.LOOKUP_KEY);
         add(ContactsContract.Contacts.Data.MIMETYPE);
+        add(ContactsContract.Contacts.CONTACT_LAST_UPDATED_TIMESTAMP);
         add(ContactsContract.Profile.DISPLAY_NAME);
         add(Contactables.PHOTO_URI);
         add(StructuredName.DISPLAY_NAME);
@@ -114,6 +115,35 @@ public class ContactsProvider {
         return contacts;
     }
 
+
+    public WritableArray getContactsByPhoneNumber(String phoneNumber) {
+        Map<String, Contact> matchingContacts;
+        {
+            Cursor cursor = contentResolver.query(
+                    ContactsContract.Data.CONTENT_URI,
+                    FULL_PROJECTION.toArray(new String[FULL_PROJECTION.size()]),
+                    ContactsContract.CommonDataKinds.Phone.NUMBER + " LIKE ? OR "
+                            + ContactsContract.CommonDataKinds.Phone.NORMALIZED_NUMBER + " LIKE ?",
+                    new String[]{"%" + phoneNumber + "%", "%" + phoneNumber + "%"},
+                    null
+            );
+
+            try {
+                matchingContacts = loadContactsFrom(cursor);
+            } finally {
+                if (cursor != null) {
+                    cursor.close();
+                }
+            }
+        }
+
+        WritableArray contacts = Arguments.createArray();
+        for (Contact contact : matchingContacts.values()) {
+            contacts.pushMap(contact.toMap());
+        }
+        return contacts;
+    }
+
      public WritableMap getContactByRawId(String contactRawId) {
 
         // Get Contact Id from Raw Contact Id
@@ -168,6 +198,13 @@ public class ContactsProvider {
         }
 
        return null;
+    }
+
+    public Integer getContactsCount() {
+        Cursor cursor =  contentResolver.query(ContactsContract.Contacts.CONTENT_URI, null, null, null, null);
+        int count = cursor.getCount();
+        
+        return count;
     }
 
     public WritableArray getContacts() {
@@ -277,7 +314,18 @@ public class ContactsProvider {
             Contact contact = map.get(contactId);
             String mimeType = cursor.getString(cursor.getColumnIndex(ContactsContract.Data.MIMETYPE));
             String name = cursor.getString(cursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME));
+
+            String updateTime = "";
+
+            try {
+              updateTime=cursor.getLong(cursor.getColumnIndex(ContactsContract.Contacts.CONTACT_LAST_UPDATED_TIMESTAMP))+"";
+            }catch (Exception e){
+              updateTime=System.currentTimeMillis()+"";
+            }
+
             contact.rawContactId = rawContactId;
+            contact.updateTime = updateTime;
+
             if (!TextUtils.isEmpty(name) && TextUtils.isEmpty(contact.displayName)) {
                 contact.displayName = name;
             }
@@ -436,6 +484,7 @@ public class ContactsProvider {
         private List<Item> phones = new ArrayList<>();
         private List<PostalAddressItem> postalAddresses = new ArrayList<>();
         private Birthday birthday;
+        private String updateTime = "";
 
 
         public Contact(String contactId) {
@@ -447,6 +496,7 @@ public class ContactsProvider {
             contact.putString("recordID", contactId);
             contact.putString("rawContactId", rawContactId);
             contact.putString("givenName", TextUtils.isEmpty(givenName) ? displayName : givenName);
+            contact.putString("displayName", displayName);
             contact.putString("middleName", middleName);
             contact.putString("familyName", familyName);
             contact.putString("prefix", prefix);
@@ -457,6 +507,7 @@ public class ContactsProvider {
             contact.putString("note", note);
             contact.putBoolean("hasThumbnail", this.hasPhoto);
             contact.putString("thumbnailPath", photoUri == null ? "" : photoUri);
+            contact.putString("updateTime", updateTime);
 
             WritableArray phoneNumbers = Arguments.createArray();
             for (Item item : phones) {

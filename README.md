@@ -1,4 +1,5 @@
-# React Native Contacts
+![react-native-contacts](https://github.com/rt2zz/react-native-contacts/raw/master/example/logo.png)
+
 To contribute read [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Ask questions on [stackoverflow](https://stackoverflow.com/questions/tagged/react-native-contacts) not the issue tracker.
@@ -70,7 +71,24 @@ select the `Build Phases` tab drag `Libraries > RCTContacts.xcodeproj > Products
 
 You should be able to run the app via the Run button in xcode or `react-native run-ios` in the terminal.
 
+#### Using CocoaPods (react-native 0.60 and above)
+Starting with 0.60, the above instructions stop working on iOS. Instead, you have to do the following:
+
+- Add the following line inside `ios/Podfile`
+
+```
+target 'app' do
+  ...
+  pod 'react-native-contacts', :path => '../node_modules/react-native-contacts' <-- add me
+  ...
+end
+```
+
+- Run `pod install` in folder `ios`
+
 ### Android
+For react native versions 0.60 and above you have to use Android X. Android X support was added to react-native-contacts in version 5.x+. If you are using rn 0.59 and below install rnc versions 4.x instead.
+
 1. In `android/settings.gradle`
 
 ```gradle
@@ -79,7 +97,7 @@ include ':react-native-contacts'
 project(':react-native-contacts').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-contacts/android')
 ```
 
-3. In `android/app/build.gradle`
+2. In `android/app/build.gradle`
 
 ```gradle
 ...
@@ -89,12 +107,13 @@ dependencies {
 }
 ```
 
-4. register module (in MainApplication.java)
+3. register module
 
 ```java
+//  MainApplication.java
 import com.rt2zz.reactnativecontacts.ReactNativeContacts; // <--- import
 
-public class MainActivity extends ReactActivity {
+public class MainApplication extends Application implements ReactApplication {
   ......
 
   @Override
@@ -146,6 +165,7 @@ Without it, your apk release version could failed
  * `updateContact` (contact, callback) - where contact is an object with a valid recordID  
  * `deleteContact` (contact, callback) - where contact is an object with a valid recordID  
  * `getContactsMatchingString` (string, callback) - where string is any string to match a name (first, middle, family) to
+ * `getContactsByPhoneNumber` (string, callback) - where string is a phone number to match to.
  * `checkPermission` (callback) - checks permission to access Contacts _ios only_
  * `requestPermission` (callback) - request permission to access Contacts _ios only_
  * `writePhotoToPath` (callback) - writes the contact photo to a given path _android only_
@@ -197,6 +217,7 @@ callback <Function>
 ```
 **NOTE**
 * on Android versions below 8 the entire display name is passed in the `givenName` field. `middleName` and `familyName` will be `""`.
+* on iOS the note field is not available.
 
 ## Adding Contacts
 Currently all fields from the contact record except for thumbnailPath are supported for writing
@@ -224,8 +245,7 @@ var newPerson = {
     label: "work",
     email: "mrniet@example.com",
   }],
-  familyName: "Nietzsche",
-  givenName: "Friedrich",
+  displayName: "Friedrich Nietzsche"
 }
 
 Contacts.openContactForm(newPerson, (err, contact) => {
@@ -318,6 +338,12 @@ Contacts.checkPermission((err, permission) => {
 These methods are only useful on iOS. For Android you'll have to use https://facebook.github.io/react-native/docs/permissionsandroid.html
 
 These methods do **not** re-request permission if permission has already been granted or denied. This is a limitation in iOS, the best you can do is prompt the user with instructions for how to enable contacts from the phone settings page `Settings > [app name] > contacts`.
+
+## Example
+You can find an example app/showcase [here](https://github.com/rt2zz/react-native-contacts/tree/master/example)
+
+![react-native-contacts example](https://github.com/rt2zz/react-native-contacts/raw/master/example/react-native-contacts.gif)
+
 
 <h2 align="center">Maintainers</h2>
 
