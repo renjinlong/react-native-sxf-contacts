@@ -4,7 +4,7 @@
     "type": "git",
     "url": "git+https://github.com/renjinlong/react-native-sxf-contacts.git"
   },
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "React Native Contacts (android & ios)",
   "nativePackage": true,
   "keywords": [
