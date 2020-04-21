@@ -8,6 +8,8 @@
     CNContactStore * contactStore;
 
     RCTResponseSenderBlock updateContactCallback;
+	
+	BOOL notesUsageEnabled;
 }
 
 - (instancetype)init
@@ -61,6 +63,11 @@ RCT_EXPORT_METHOD(requestPermission:(RCTResponseSenderBlock) callback)
     }];
 }
 
+RCT_EXPORT_METHOD(iosEnableNotesUsage:(BOOL) enabled)
+{
+    notesUsageEnabled = enabled;
+}
+
 RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string callback:(RCTResponseSenderBlock) callback)
 {
     CNContactStore *contactStore = [[CNContactStore alloc] init];
@@ -75,23 +82,28 @@ RCT_EXPORT_METHOD(getContactsMatchingString:(NSString *)string callback:(RCTResp
 {
     NSMutableArray *contacts = [[NSMutableArray alloc] init];
     NSError *contactError = nil;
-    NSArray *keys = @[
-                      CNContactEmailAddressesKey,
-                      CNContactPhoneNumbersKey,
-                      CNContactFamilyNameKey,
-                      CNContactGivenNameKey,
-                      CNContactMiddleNameKey,
-                      CNContactPostalAddressesKey,
-                      CNContactOrganizationNameKey,
-                      CNContactJobTitleKey,
-                      CNContactImageDataAvailableKey,
-                      CNContactNoteKey,
-                      CNContactUrlAddressesKey,
-                      CNContactBirthdayKey
-                      ];
+    NSMutableArray *keys = [NSMutableArray arrayWithArray: @[
+		CNContactEmailAddressesKey,
+		CNContactPhoneNumbersKey,
+		CNContactFamilyNameKey,
+		CNContactGivenNameKey,
+		CNContactMiddleNameKey,
+		CNContactPostalAddressesKey,
+		CNContactOrganizationNameKey,
+		CNContactJobTitleKey,
+		CNContactImageDataAvailableKey,
+		CNContactThumbnailImageDataKey,
+		CNContactUrlAddressesKey,
+		CNContactBirthdayKey,
+		CNContactInstantMessageAddressesKey
+	]];
+	if(notesUsageEnabled) {
+        [keys addObject: CNContactNoteKey];
+    }
+	
     NSArray *arrayOfContacts = [store unifiedContactsMatchingPredicate:[CNContact predicateForContactsMatchingName:searchString]
-                                                           keysToFetch:keys
-                                                                 error:&contactError];
+	keysToFetch:keys
+		  error:&contactError];
     [arrayOfContacts enumerateObjectsUsingBlock:^(CNContact * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
         NSDictionary *contactDictionary = [self contactToDictionary:obj withThumbnails:NO];
         [contacts addObject:contactDictionary];
@@ -140,10 +152,13 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
                                        CNContactOrganizationNameKey,
                                        CNContactJobTitleKey,
                                        CNContactImageDataAvailableKey,
-                                       CNContactNoteKey,
                                        CNContactUrlAddressesKey,
-                                       CNContactBirthdayKey
+                                       CNContactBirthdayKey,
+									   CNContactInstantMessageAddressesKey
                                        ]];
+	if(notesUsageEnabled) {
+        [keysToFetch addObject: CNContactNoteKey];
+    }
 
     if(withThumbnails) {
         [keysToFetch addObject:CNContactThumbnailImageDataKey];
@@ -169,7 +184,6 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
     NSString *middleName = person.middleName;
     NSString *company = person.organizationName;
     NSString *jobTitle = person.jobTitle;
-    NSString *note = person.note;
     NSDateComponents *birthday = person.birthday;
 
     [output setObject:recordID forKey: @"recordID"];
@@ -194,9 +208,12 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
         [output setObject: (jobTitle) ? jobTitle : @"" forKey:@"jobTitle"];
     }
 
-    if(note){
-        [output setObject: (note) ? note : @"" forKey:@"note"];
-    }
+	if(notesUsageEnabled){
+		NSString *note = person.note;
+		if(note){
+			[output setObject: (note) ? note : @"" forKey:@"note"];
+		}
+	}
 
     if (birthday) {
         if (birthday.month != NSDateComponentUndefined && birthday.day != NSDateComponentUndefined) {
@@ -319,6 +336,30 @@ RCT_EXPORT_METHOD(getAllWithoutPhotos:(RCTResponseSenderBlock) callback)
 
     [output setObject:postalAddresses forKey:@"postalAddresses"];
     //end postal addresses
+	
+	//handle instant message addresses
+    NSMutableArray *imAddresses = [[NSMutableArray alloc] init];
+
+    for (CNLabeledValue<CNInstantMessageAddress*>* labeledValue in person.instantMessageAddresses) {
+        NSMutableDictionary* imAddress = [NSMutableDictionary dictionary];
+        CNInstantMessageAddress* imAddressData = labeledValue.value;
+        NSString* service = [CNLabeledValue localizedStringForLabel: imAddressData.service];
+        NSString* username = imAddressData.username;
+
+        if(username) {
+            if(!service) {
+                service = [CNLabeledValue localizedStringForLabel:@"other"];
+            }
+            [imAddress setObject: service forKey:@"service"];
+            [imAddress setObject: username forKey:@"username"];
+            [imAddresses addObject: imAddress];
+        } else {
+            RCTLog(@"ignoring blank instant message address");
+        }
+    }
+
+    [output setObject: imAddresses forKey:@"imAddresses"];
+    //end instant message addresses
 
     [output setValue:[NSNumber numberWithBool:person.imageDataAvailable] forKey:@"hasThumbnail"];
     if (withThumbnails) {
@@ -431,21 +472,27 @@ RCT_EXPORT_METHOD(getContactById:(nonnull NSString *)recordID callback:(RCTRespo
                                withThumbnails:(BOOL) withThumbnails
 {
     NSError* contactError;
-    NSArray *keysToFetch = @[
-                      CNContactEmailAddressesKey,
-                      CNContactPhoneNumbersKey,
-                      CNContactFamilyNameKey,
-                      CNContactGivenNameKey,
-                      CNContactMiddleNameKey,
-                      CNContactPostalAddressesKey,
-                      CNContactOrganizationNameKey,
-                      CNContactJobTitleKey,
-                      CNContactImageDataAvailableKey,
-                      CNContactNoteKey,
-                      CNContactUrlAddressesKey,
-                      CNContactBirthdayKey
-                      ];
+    NSMutableArray *keysToFetch = [NSMutableArray arrayWithArray: @[
+		CNContactEmailAddressesKey,
+		CNContactPhoneNumbersKey,
+		CNContactFamilyNameKey,
+		CNContactGivenNameKey,
+		CNContactMiddleNameKey,
+		CNContactPostalAddressesKey,
+		CNContactOrganizationNameKey,
+		CNContactJobTitleKey,
+		CNContactImageDataAvailableKey,
+		CNContactUrlAddressesKey,
+		CNContactBirthdayKey,
+		CNContactInstantMessageAddressesKey
+	]];
+	if(notesUsageEnabled) {
+        [keysToFetch addObject: CNContactNoteKey];
+    }
+	
     CNContact* contact = [addressBook unifiedContactWithIdentifier:recordID keysToFetch:keysToFetch error:&contactError];
+	if(!contact)
+			return nil;
 
     return [self contactToDictionary: contact withThumbnails:withThumbnails];
 }
@@ -478,10 +525,6 @@ RCT_EXPORT_METHOD(addContact:(NSDictionary *)contactData callback:(RCTResponseSe
 
 RCT_EXPORT_METHOD(openContactForm:(NSDictionary *)contactData callback:(RCTResponseSenderBlock)callback)
 {
-    CNContactStore* contactStore = [self contactsStore:callback];
-    if(!contactStore)
-        return;
-
     CNMutableContact * contact = [[CNMutableContact alloc] init];
 
     [self updateRecord:contact withData:contactData];
@@ -493,7 +536,21 @@ RCT_EXPORT_METHOD(openContactForm:(NSDictionary *)contactData callback:(RCTRespo
     dispatch_async(dispatch_get_main_queue(), ^{
         UINavigationController* navigation = [[UINavigationController alloc] initWithRootViewController:controller];
         UIViewController *viewController = (UIViewController*)[[[[UIApplication sharedApplication] delegate] window] rootViewController];
+		while (viewController.presentedViewController)
+			{
+				viewController = viewController.presentedViewController;
+			}
         [viewController presentViewController:navigation animated:YES completion:nil];
+		
+		if (@available(iOS 13, *)) {
+            viewController.view.window.backgroundColor=[UIColor blackColor];
+            navigation.navigationBar.topItem.title = @"";
+            UIView *statusBar = [[UIView alloc]initWithFrame:[UIApplication sharedApplication].keyWindow.windowScene.statusBarManager.statusBarFrame];
+            statusBar.backgroundColor = [UIColor blackColor];
+            statusBar.tag=1;
+            controller.navigationController.navigationBar.tintColor = [UIColor blackColor];
+            [[UIApplication sharedApplication].keyWindow addSubview:statusBar];
+        }
 
         updateContactCallback = callback;
     });
@@ -602,22 +659,25 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
 
     NSError* contactError;
     NSString* recordID = [contactData valueForKey:@"recordID"];
-    NSArray * keysToFetch =@[
-                             CNContactEmailAddressesKey,
-                             CNContactPhoneNumbersKey,
-                             CNContactFamilyNameKey,
-                             CNContactGivenNameKey,
-                             CNContactMiddleNameKey,
-                             CNContactPostalAddressesKey,
-                             CNContactOrganizationNameKey,
-                             CNContactJobTitleKey,
-                             CNContactImageDataAvailableKey,
-                             CNContactThumbnailImageDataKey,
-                             CNContactImageDataKey,
-                             CNContactNoteKey,
-                             CNContactUrlAddressesKey,
-                             CNContactBirthdayKey
-                             ];
+    NSMutableArray* keysToFetch = [NSMutableArray arrayWithArray: @[
+		 CNContactEmailAddressesKey,
+		 CNContactPhoneNumbersKey,
+		 CNContactFamilyNameKey,
+		 CNContactGivenNameKey,
+		 CNContactMiddleNameKey,
+		 CNContactPostalAddressesKey,
+		 CNContactOrganizationNameKey,
+		 CNContactJobTitleKey,
+		 CNContactImageDataAvailableKey,
+		 CNContactThumbnailImageDataKey,
+		 CNContactImageDataKey,
+		 CNContactUrlAddressesKey,
+		 CNContactBirthdayKey,
+		 CNContactInstantMessageAddressesKey
+    ]];
+	if(notesUsageEnabled) {
+        [keysToFetch addObject: CNContactNoteKey];
+    }
 
     @try {
         CNMutableContact* record = [[contactStore unifiedContactWithIdentifier:recordID keysToFetch:keysToFetch error:&contactError] mutableCopy];
@@ -643,7 +703,6 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
     NSString *middleName = [contactData valueForKey:@"middleName"];
     NSString *company = [contactData valueForKey:@"company"];
     NSString *jobTitle = [contactData valueForKey:@"jobTitle"];
-    NSString *note = [contactData valueForKey:@"note"];
 
     NSDictionary *birthday = [contactData valueForKey:@"birthday"];
 
@@ -652,7 +711,10 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
     contact.middleName = middleName;
     contact.organizationName = company;
     contact.jobTitle = jobTitle;
-    contact.note = note;
+    if(notesUsageEnabled){
+        NSString *note = [contactData valueForKey:@"note"];
+        contact.note = note;
+    }
 
     if (birthday) {
         NSDateComponents *components;
@@ -747,6 +809,20 @@ RCT_EXPORT_METHOD(updateContact:(NSDictionary *)contactData callback:(RCTRespons
     }
 
     contact.postalAddresses = postalAddresses;
+	
+	NSMutableArray<CNLabeledValue<CNInstantMessageAddress*>*> *imAddresses = [[NSMutableArray alloc] init];
+    
+    for (id imData in [contactData valueForKey:@"imAddresses"]) {
+        NSString *service = [imData valueForKey:@"service"];
+        NSString *username = [imData valueForKey:@"username"];
+
+        if(service && username) {
+            CNLabeledValue *imAddress = [[CNLabeledValue alloc] initWithLabel: @"instantMessageAddress" value: [[CNInstantMessageAddress alloc] initWithUsername: username service: service]];
+            [imAddresses addObject: imAddress];
+        }
+    }
+
+    contact.instantMessageAddresses = imAddresses;
 
     NSString *thumbnailPath = [contactData valueForKey:@"thumbnailPath"];
 
